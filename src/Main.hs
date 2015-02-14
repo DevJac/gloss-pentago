@@ -3,7 +3,9 @@ import Graphics.Gloss.Data.Color (Color, makeColor)
 import Graphics.Gloss.Data.Picture
     (Picture, pictures, blank, translate, color, thickCircle, rectangleSolid)
 import Graphics.Gloss.Interface.Pure.Game (Event)
-import Data.Map as M
+import qualified Data.Map as M
+import Data.List (maximumBy)
+import Data.Ord (comparing)
 
 type Board = M.Map (Int, Int) Marker
 
@@ -45,6 +47,10 @@ renderBackground = pictures $
 
 render :: Board -> Picture
 render _ = renderBackground
+
+snap :: [(Float, Float)] -> (Float, Float) -> (Float, Float)
+snap ts (x, y) = fst . maximumBy (comparing snd) $
+                 map (\p@(a, b) -> (p, sqrt (abs(x-a)**2 + abs(y-b)**2))) ts
 
 handleInput :: Event -> Board -> Board
 handleInput _ b = b
