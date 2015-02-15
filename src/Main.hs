@@ -2,10 +2,14 @@ import Graphics.Gloss (play, Display (InWindow))
 import Graphics.Gloss.Data.Color (Color, makeColor, white, black)
 import Graphics.Gloss.Data.Picture
     (Picture, pictures, blank, translate, color, thickCircle, rectangleSolid)
-import Graphics.Gloss.Interface.Pure.Game (Event)
+import Graphics.Gloss.Interface.Pure.Game
+    (Event (EventKey), Key (MouseButton), MouseButton (LeftButton),
+     KeyState (Up))
 import qualified Data.Map as M
-import Data.List (maximumBy)
+import Data.List (minimumBy)
 import Data.Ord (comparing)
+import Data.Maybe (isNothing)
+import Debug.Trace
 
 type Board = M.Map (Int, Int) Marker
 
@@ -38,8 +42,7 @@ renderQuadrant :: Picture
 renderQuadrant = pictures $
     [ color mainBoardColor $ rectangleSolid 140 140 ] ++
     [ color secondaryBoardColor $ translate x y $ thickCircle 5 10
-        | x <- [-50, 0, 50]
-        , y <- [-50, 0, 50] ]
+        | x <- [-50, 0, 50], y <- [-50, 0, 50] ]
 
 renderBackground :: Picture
 renderBackground = pictures
@@ -56,16 +59,32 @@ renderMarkers b =
                           thickCircle 5 20
             _          -> blank
         | x <- [0..5], y <- [0..5] ]
-    where t n = 125 + (50 * n)
+    where t n = 125 - (50 * n)
 
 render :: Board -> Picture
 render b = pictures [ renderBackground, renderMarkers b ]
 
+positionCoordinates :: [(Float, Float)]
+positionCoordinates = [ (x, y) | x <- a, y <- a ]
+                      where a = take 6 $ iterate (+50) (-125)
+
 snap :: [(Float, Float)] -> (Float, Float) -> (Float, Float)
-snap ts (x, y) = fst . maximumBy (comparing snd) $
+snap ts (x, y) = fst . minimumBy (comparing snd) $
                  map (\p@(a, b) -> (p, sqrt (abs(x-a)**2 + abs(y-b)**2))) ts
 
+emptyPositions :: Board -> [(Int, Int)]
+emptyPositions b = filter (\k -> isNothing $ M.lookup k b)
+                   [ (x, y) | x <- [0..5], y <- [0..5] ]
+
+currentPlayer :: Board -> Marker
+currentPlayer b | even . length $ emptyPositions b = White
+                | otherwise                        = Black
+
 handleInput :: Event -> Board -> Board
+handleInput (EventKey (MouseButton LeftButton) Up _ c) b =
+    let (x, y) = snap positionCoordinates c
+        p = ((125 - round x) `div` 50, (125 - round y) `div` 50)
+    in if p `elem` emptyPositions b then M.insert p (currentPlayer b) b else b
 handleInput _ b = b
 
 step :: Float -> Board -> Board
