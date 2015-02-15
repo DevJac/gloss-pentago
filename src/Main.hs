@@ -11,6 +11,8 @@ import Data.Ord (comparing)
 import Data.Maybe (isNothing)
 import Debug.Trace
 
+data World = World Bool Board
+
 type Board = M.Map (Int, Int) Marker
 
 data Marker = White | Black deriving Eq
@@ -33,7 +35,7 @@ main = play
     (InWindow "Pentago" (600, 600) (100, 100))
     backgroundColor
     20
-    M.empty
+    (World False M.empty)
     render
     handleInput
     step
@@ -61,8 +63,8 @@ renderMarkers b =
         | x <- [0..5], y <- [0..5] ]
     where t n = 125 - (50 * n)
 
-render :: Board -> Picture
-render b = pictures [ renderBackground, renderMarkers b ]
+render :: World -> Picture
+render (World _ b) = pictures [ renderBackground, renderMarkers b ]
 
 positionCoordinates :: [(Float, Float)]
 positionCoordinates = [ (x, y) | x <- a, y <- a ]
@@ -80,12 +82,14 @@ currentPlayer :: Board -> Marker
 currentPlayer b | even . length $ emptyPositions b = White
                 | otherwise                        = Black
 
-handleInput :: Event -> Board -> Board
-handleInput (EventKey (MouseButton LeftButton) Up _ c) b =
+handleInput :: Event -> World -> World
+handleInput (EventKey (MouseButton LeftButton) Up _ c) w@(World False b) =
     let (x, y) = snap positionCoordinates c
         p = ((125 - round x) `div` 50, (125 - round y) `div` 50)
-    in if p `elem` emptyPositions b then M.insert p (currentPlayer b) b else b
-handleInput _ b = b
+    in if p `elem` emptyPositions b
+       then World True (M.insert p (currentPlayer b) b)
+       else w
+handleInput _ w = w
 
-step :: Float -> Board -> Board
-step _ b = b
+step :: Float -> World -> World
+step _ w = w
