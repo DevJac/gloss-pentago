@@ -1,5 +1,5 @@
 import Graphics.Gloss (play, Display (InWindow))
-import Graphics.Gloss.Data.Color (Color, makeColor)
+import Graphics.Gloss.Data.Color (Color, makeColor, white, black)
 import Graphics.Gloss.Data.Picture
     (Picture, pictures, blank, translate, color, thickCircle, rectangleSolid)
 import Graphics.Gloss.Interface.Pure.Game (Event)
@@ -19,7 +19,7 @@ backgroundColor :: Color
 backgroundColor = makeColor 0.5 0.5 0.5 1
 
 mainBoardColor :: Color
-mainBoardColor = makeColor 0.8 0 0 1
+mainBoardColor = makeColor 0.7 0 0 1
 
 secondaryBoardColor :: Color
 secondaryBoardColor = makeColor 0.5 0 0 1
@@ -42,11 +42,24 @@ renderQuadrant = pictures $
         , y <- [-50, 0, 50] ]
 
 renderBackground :: Picture
-renderBackground = pictures $
+renderBackground = pictures
     [ translate x y $ renderQuadrant | x <- [-75, 75], y <- [-75, 75] ]
 
+renderMarkers :: Board -> Picture
+renderMarkers b =
+    pictures [ case M.lookup (x, y) b of
+            Just White -> translate (t $ fromIntegral x) (t $ fromIntegral y) .
+                          color white $
+                          thickCircle 5 20
+            Just Black -> translate (t $ fromIntegral x) (t $ fromIntegral y) .
+                          color black $
+                          thickCircle 5 20
+            _          -> blank
+        | x <- [0..5], y <- [0..5] ]
+    where t n = 125 + (50 * n)
+
 render :: Board -> Picture
-render _ = renderBackground
+render b = pictures [ renderBackground, renderMarkers b ]
 
 snap :: [(Float, Float)] -> (Float, Float) -> (Float, Float)
 snap ts (x, y) = fst . maximumBy (comparing snd) $
