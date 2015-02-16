@@ -9,11 +9,14 @@ import qualified Data.Map as M
 import Data.List (minimumBy)
 import Data.Ord (comparing)
 import Data.Maybe (isNothing)
+import Data.Tuple (swap)
 import Debug.Trace
 
 data World = World Bool Board
 
 type Board = M.Map (Int, Int) Marker
+
+data RotationDirection = Clockwise | CounterClockwise deriving Eq
 
 data Marker = White | Black deriving Eq
 
@@ -70,6 +73,39 @@ positionCoordinates :: [(Float, Float)]
 positionCoordinates = [ (x, y) | x <- a, y <- a ]
                       where a = take 6 $ iterate (+50) (-125)
 
+rotationCoordinates :: [(Float, Float)]
+rotationCoordinates =
+    concat [ [(x, y), (y, x)] | x <- [-100, 100], y <- [-200, 200] ]
+
+rotationIndices :: [((Int, Int), (Int, Int))]
+rotationIndices = [ (( 0,  1), ( 1,  0)),
+                    (( 1,  0), ( 0, -1)),
+                    (( 0, -1), (-1,  0)),
+                    ((-1,  0), ( 0,  1)),
+                    ((-1,  1), ( 1,  1)),
+                    (( 1,  1), ( 1, -1)),
+                    (( 1, -1), (-1, -1)),
+                    ((-1, -1), (-1,  1)) ]
+
+rotateQuadrant :: (Float, Float) -> Board -> Board
+rotateQuadrant ( 100,  200) = rotateQuadrant' (1, 1) CounterClockwise
+rotateQuadrant ( 200,  100) = rotateQuadrant' (1, 1) Clockwise
+rotateQuadrant ( 200, -100) = rotateQuadrant' (1, 4) CounterClockwise
+rotateQuadrant ( 100, -200) = rotateQuadrant' (1, 4) Clockwise
+rotateQuadrant (-100, -200) = rotateQuadrant' (4, 4) CounterClockwise
+rotateQuadrant (-200, -100) = rotateQuadrant' (4, 4) Clockwise
+rotateQuadrant (-200,  100) = rotateQuadrant' (4, 1) CounterClockwise
+rotateQuadrant _            = rotateQuadrant' (4, 1) Clockwise
+
+rotateQuadrant' :: (Int, Int) -> RotationDirection -> Board -> Board
+rotateQuadrant' (x, y) d b0 =
+    case d of Clockwise -> foldr rot b0 rotationIndices
+              _         -> foldr rot b0 (map swap rotationIndices)
+    where
+    rot ((i, j), (l, m)) b' =
+        case M.lookup (i+x, j+y) b0 of Just v  -> M.insert (l+x, m+y) v b'
+                                       Nothing -> M.delete (l+x, m+y) b'
+
 snap :: [(Float, Float)] -> (Float, Float) -> (Float, Float)
 snap ts (x, y) = fst . minimumBy (comparing snd) $
                  map (\p@(a, b) -> (p, sqrt (abs(x-a)**2 + abs(y-b)**2))) ts
@@ -85,10 +121,13 @@ currentPlayer b | even . length $ emptyPositions b = White
 handleInput :: Event -> World -> World
 handleInput (EventKey (MouseButton LeftButton) Up _ c) w@(World False b) =
     let (x, y) = snap positionCoordinates c
-        p = ((125 - round x) `div` 50, (125 - round y) `div` 50)
+        p      = ((125 - round x) `div` 50, (125 - round y) `div` 50)
     in if p `elem` emptyPositions b
        then World True (M.insert p (currentPlayer b) b)
        else w
+handleInput (EventKey (MouseButton LeftButton) Up _ c0) (World True b) =
+    let c' = snap rotationCoordinates c0
+    in World False $ rotateQuadrant c' b
 handleInput _ w = w
 
 step :: Float -> World -> World
