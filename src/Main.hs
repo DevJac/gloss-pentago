@@ -8,9 +8,8 @@ import Graphics.Gloss.Interface.Pure.Game
 import qualified Data.Map as M
 import Data.List (minimumBy)
 import Data.Ord (comparing)
-import Data.Maybe (isNothing)
+import Data.Maybe (isJust, isNothing)
 import Data.Tuple (swap)
-import Debug.Trace
 
 data World = World Bool Board
 
@@ -118,7 +117,27 @@ currentPlayer :: Board -> Marker
 currentPlayer b | even . length $ emptyPositions b = White
                 | otherwise                        = Black
 
+directions :: [(Int, Int) -> (Int, Int)]
+directions = [ (\(x, y) -> (x+1, y  )),
+               (\(x, y) -> (x  , y+1)),
+               (\(x, y) -> (x+1, y+1)),
+               (\(x, y) -> (x+1, y-1)) ]
+
+rows :: (Int, Int) -> Int -> [[(Int, Int)]]
+rows (x, y) l = [ take l $ iterate d (a, b)
+                | a <- [0..x-1], b <- [0..y-1], d <- directions]
+
+gameComplete :: Board -> Bool
+gameComplete b = any allSame .
+                 filter (all isJust) .
+                 map (map (\k -> M.lookup k b)) $
+                 rows (6, 6) 5
+                 where allSame (x:xs) = all (==x) xs
+                       allSame _      = False
+
 handleInput :: Event -> World -> World
+handleInput (EventKey (MouseButton LeftButton) Up _ _) w@(World False b)
+    | gameComplete b = w
 handleInput (EventKey (MouseButton LeftButton) Up _ c) w@(World False b) =
     let (x, y) = snap positionCoordinates c
         p      = ((125 - round x) `div` 50, (125 - round y) `div` 50)
