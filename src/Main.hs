@@ -6,10 +6,11 @@ import Graphics.Gloss.Interface.Pure.Game
     (Event (EventKey), Key (MouseButton), MouseButton (LeftButton),
      KeyState (Up))
 import qualified Data.Map as M
-import Data.List (minimumBy)
+import Data.List (minimumBy, nub)
 import Data.Ord (comparing)
 import Data.Maybe (isJust, isNothing)
 import Data.Tuple (swap)
+import Control.Applicative ((<*>), pure)
 
 data World = World Bool Board
 
@@ -36,7 +37,7 @@ main :: IO ()
 main = play
     (InWindow "Pentago" (600, 600) (100, 100))
     backgroundColor
-    20
+    5
     (World False M.empty)
     render
     handleInput
@@ -127,17 +128,20 @@ rows :: (Int, Int) -> Int -> [[(Int, Int)]]
 rows (x, y) l = [ take l $ iterate d (a, b)
                 | a <- [0..x-1], b <- [0..y-1], d <- directions]
 
+boardRows :: Board -> [[Maybe Marker]]
+boardRows b = map (map (\k -> M.lookup k b)) $ rows (6, 6) 5
+
+allSame :: Eq a => [a] -> Bool
+allSame (x:xs) = all (==x) xs
+allSame _      = False
+
 gameComplete :: Board -> Bool
-gameComplete b = any allSame .
-                 filter (all isJust) .
-                 map (map (\k -> M.lookup k b)) $
-                 rows (6, 6) 5
-                 where allSame (x:xs) = all (==x) xs
-                       allSame _      = False
+gameComplete = any allSame . filter (all isJust) . boardRows
 
 handleInput :: Event -> World -> World
 handleInput (EventKey (MouseButton LeftButton) Up _ _) w@(World False b)
-    | gameComplete b = w
+    | gameComplete b           = w
+    | currentPlayer b == Black = w
 handleInput (EventKey (MouseButton LeftButton) Up _ c) w@(World False b) =
     let (x, y) = snap positionCoordinates c
         p      = ((125 - round x) `div` 50, (125 - round y) `div` 50)
@@ -150,4 +154,34 @@ handleInput (EventKey (MouseButton LeftButton) Up _ c0) (World True b) =
 handleInput _ w = w
 
 step :: Float -> World -> World
+step _ w@(World False b) | gameComplete b           = w
+                         | currentPlayer b == Black = World False $ aiMove b
 step _ w = w
+
+possibleMoves :: Board -> [Board]
+possibleMoves b =
+    nub $
+    pure rotateQuadrant' <*>
+    [(x, y) | x <- [1, 4], y <- [1, 4]] <*>
+    [Clockwise, CounterClockwise] <*>
+    (map (\k -> M.insert k (currentPlayer b)) (emptyPositions b) <*> pure b)
+
+scoreBoard :: Board -> Int
+scoreBoard row = sum $ map (\r -> scoreRow $ filter isJust r) (boardRows row)
+    where scoreRow :: [Maybe Marker] -> Int
+          scoreRow r | not $ allSame r = 0
+          scoreRow r@((Just White):_)  =          8 ^ (length r)
+          scoreRow r                   = negate $ 8 ^ (length r)
+
+aiMove :: Board -> Board
+aiMove = fst . minimumBy (comparing snd) .
+         map (\b -> (b, minMaxScore 1 b)) . possibleMoves
+
+minMaxScore :: Int -> Board -> Int
+minMaxScore depth b
+    | depth == 0               = scoreBoard b
+    | gameComplete b           = scoreBoard b
+    | currentPlayer b == White =
+        maximum $ map (minMaxScore $ depth-1) (possibleMoves b)
+    | otherwise                =
+        minimum $ map (minMaxScore $ depth-1) (possibleMoves b)
