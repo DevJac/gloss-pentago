@@ -6,7 +6,8 @@ import Graphics.Gloss.Interface.Pure.Game
     (Event (EventKey), Key (MouseButton), MouseButton (LeftButton),
      KeyState (Up))
 import qualified Data.Map as M
-import Data.List (minimumBy, nub)
+import qualified Data.Set as S
+import Data.List (minimumBy)
 import Data.Ord (comparing)
 import Data.Maybe (isJust, isNothing)
 import Data.Tuple (swap)
@@ -18,7 +19,7 @@ type Board = M.Map (Int, Int) Marker
 
 data RotationDirection = Clockwise | CounterClockwise deriving Eq
 
-data Marker = White | Black deriving Eq
+data Marker = White | Black deriving (Eq, Ord)
 
 instance Show Marker where
     show White = "W"
@@ -161,7 +162,7 @@ step _ w = w
 
 possibleMoves :: Board -> [Board]
 possibleMoves b =
-    nub $
+    S.toList . S.fromList $
     pure rotateQuadrant' <*>
     [(x, y) | x <- [1, 4], y <- [1, 4]] <*>
     [Clockwise, CounterClockwise] <*>
