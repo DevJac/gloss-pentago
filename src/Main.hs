@@ -125,7 +125,8 @@ directions = [ (\(x, y) -> (x+1, y  )),
                (\(x, y) -> (x+1, y-1)) ]
 
 rows :: (Int, Int) -> Int -> [[(Int, Int)]]
-rows (x, y) l = [ take l $ iterate d (a, b)
+rows (x, y) l = filter (all (\(a, b) -> a >= 0 && b >= 0 && a < x && b < y))
+                [ take l $ iterate d (a, b)
                 | a <- [0..x-1], b <- [0..y-1], d <- directions]
 
 boardRows :: Board -> [[Maybe Marker]]
